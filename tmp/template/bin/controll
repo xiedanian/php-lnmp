@@ -1,0 +1,131 @@
+#!/bin/bash
+# author: zhangjianguo
+# date: 2016-08-05
+# php-fpm and nginx controll script
+# useage: ./controll.sh reload[start|stop|restart] php-fpm[nginx|all]
+# ROOT_DIR=/home/zhangjianguo/env
+ROOT_DIR=/home/zhangjianguo/env/local
+PHP_DIR=${ROOT_DIR}/php
+NGX_DIR=${ROOT_DIR}/nginx
+
+NGX_PID_FILE=${NGX_DIR}/logs/nginx.pid
+PHPFPM_PID_FILE=${PHP_DIR}/var/run/php-fpm.pid
+
+function error(){
+    echo "[ERROR] $1"
+    exit
+}
+
+function success(){
+    echo "[SUCCESS] $1"
+}
+
+###########################################################
+# 
+# NGINX
+#
+###########################################################
+function start_nginx(){
+    if [ -f ${NGX_PID_FILE} ];then
+        error "nginx already running! see pid file: ${NGX_PID_FILE}"
+    fi
+    ${NGX_DIR}/sbin/nginx
+    if [ $? -ne 0 ];then
+        error "nginx start faild!"
+    fi
+    success "nginx start success!"
+}
+
+function reload_nginx(){
+    if [ ! -f ${NGX_PID_FILE} ];then
+        error "nginx not running!"
+    fi
+    NGX_PID=$(cat ${NGX_PID_FILE})
+    #kill -HUP ${NGX_PID}
+    ${NGX_DIR}/sbin/nginx -s reload
+    if [ $? -ne 0 ];then
+        error "nginx reload faild!"
+    fi
+    OLDPID=${NGX_PID}
+    sleep 1
+    NEWPID=$(cat ${NGX_PID_FILE})
+    success "nginx reload success! pid: ${OLDPID} => ${NEWPID}"
+}
+
+function stop_nginx(){
+    if [ ! -f ${NGX_PID_FILE} ];then
+        error "nginx not running!"
+    fi
+    NGX_PID=$(cat ${NGX_PID_FILE})
+    ${NGX_DIR}/sbin/nginx -s quit
+    if [ $? -ne 0 ];then
+        error "nginx stop faild!"
+    fi
+    success "nginx stop success!"
+}
+
+function restart_nginx(){
+    stop_nginx
+    sleep 1
+    start_nginx
+}
+
+###########################################################
+# 
+# PHP
+#
+###########################################################
+function start_phpfpm(){
+    if [ -f ${PHPFPM_PID_FILE} ];then
+        error "php-fpm already running! see pid file: ${PHPFPM_PID_FILE}"
+    fi
+    ${PHP_DIR}/sbin/php-fpm
+    if [ $? -ne 0 ];then
+        error "php-fpm start faild!"
+    fi
+    success "php-fpm start success!"
+}
+
+function reload_phpfpm(){
+    if [ ! -f ${PHPFPM_PID_FILE} ];then
+        error "php-fpm not running!"
+    fi
+    PHPFPM_PID=$(cat ${PHPFPM_PID_FILE})
+    kill -USR2 ${PHPFPM_PID}
+    if [ $? -ne 0 ];then
+        error "php-fpm reload faild!"
+    fi
+    OLDPID=${PHPFPM_PID}
+    sleep 1
+    NEWPID=$(cat ${PHPFPM_PID_FILE})
+    success "php-fpm reload success! pid: ${OLDPID} => ${NEWPID}"
+}
+
+function stop_phpfpm(){
+    if [ ! -f ${PHPFPM_PID_FILE} ];then
+        error "php-fpm not running!"
+    fi
+    PHPFPM_PID=$(cat ${PHPFPM_PID_FILE})
+    kill -INT ${PHPFPM_PID}
+    if [ $? -ne 0 ];then
+        error "php-fpm stop faild!"
+    fi
+    success "php-fpm stop success!"
+}
+
+function restart_phpfpm(){
+    stop_phpfpm
+    sleep 1
+    start_phpfpm
+}
+
+action=$1
+target=$2
+if [ ${target} = "php-fpm" -o ${target} = "phpfpm" -o ${target} = "all" ];then
+    fun=${action}_phpfpm
+    $fun
+fi
+if [ ${target} = "nginx" -o ${target} = "all" ];then
+    fun=${action}_nginx
+    $fun
+fi
